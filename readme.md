@@ -58,7 +58,7 @@ Create a project from the shell using:
 
     mvn io.quarkus:quarkus-maven-plugin:1.0.1.Final:create -DprojectGroupId=org.acme -DprojectArtifactId=hello-world -DprojectVersion=0.1-SNAPSHOT -Dendpoint=/hello -DclassName=org.acme.Hello
 
-Open the project and find `Hello.java` to give a glimpse.
+Open the project and find `Hello.java` (which defines a JAX-RS resource) to get a glimpse.
 From the shell run the application in dev mode:
 
     mvn compile quarkus:dev
@@ -99,8 +99,8 @@ Show that the application is running as expected.
 #### Externalize Properties
 
 Optionally, create a `GreetingService` annotated with `javax.enterprise.context.ApplicationScoped` and inject it into `Hello` resource.
-Add a `@ConfigProperty(name="message")` annotation onto a String property and crate a method that returns that.
-In the `Hello` resource, change the hello method so that it calls this method.
+Add a `@ConfigProperty(name="message")` annotation onto a String property and create a method that returns that.
+In the `Hello` JAX-RS resource, change the hello method so that it calls this method.
 Open `application.properties` and add the value for `message`.
 
 #### Streaming 
@@ -117,11 +117,12 @@ Create a method that returns a `Publisher<String>` and internally uses `Flowable
 ```java
 String[] greetings = new String[]{"Hola!", "Hi!", "Ciao!", "Bounjour!"};
 Random random = new Random();
-return Flowable.interval(5, TimeUnit.SECONDS).map(t->greetings[random.nextInt(greetings.length)]);
+return Flowable.interval(5, TimeUnit.SECONDS).map(t -> greetings[random.nextInt(greetings.length)]);
 ```
 
-Back to the `Hello` resource. Create a method like `hello` say `stream` that uses a differnt path, say `@Path("/stream")` and insted of `TEXT_PLAIN` return `SERVER_SENT_EVENTS`.
+Back to the `Hello` resource. Create a method like `hello`, for example called `stream` that uses a differnt path, say `@Path("/stream")` and insted of `TEXT_PLAIN` returns `SERVER_SENT_EVENTS`.
 This method should now delegate to the injected `StreamingGreetingService`.
+When the `/stream` path in hit in the browser, a new message will be added every 5 seconds.
 
 
 #### Use reactive postgres client.
@@ -130,17 +131,18 @@ From the command line add the reactive stream operators extension.
 
     mvn quarkus:add-extension -Dextensions="io.quarkus:quarkus-reactive-pg-client"
     
-Ensure that postgres is up an running (see [Assets](#Assets)). Describe the greetings table.
+Ensure that postgres is up an running (see [Assets](#Assets)). 
+The database defines a `greeting` table that contains two fields, `lang` and `greeting`. Our goal is to obtain the value of the later for a given value of the former, but in a reactive way.
 
 Create a `PgGreetingService` that injects a `io.reactiverse.axle.pgclient.PgPool`.
-Create a method that runs a simple query like `selet * from greeting where lang='it'`.
+Create a method that runs a simple query like `select * from greeting where lang='it'`.
 From the result get the `greeting` column and return that. The method should return `CompletionStage<String>`.
 
 ```java
 client.query("select * from greeting where lang='it'").thenApply(rs->rs.iterator().next().getString("greeting"));
 ```
 
-As before inject the `PgGreetingService` into hello and create a different endpoint.
+As before inject the `PgGreetingService` into the `Hello` and create a different endpoint.
 In the application.properties the following properties are required:
 
     quarkus.datasource.url=vertx-reactive:postgresql://:5432/demo
@@ -148,7 +150,7 @@ In the application.properties the following properties are required:
     quarkus.datasource.username=root
     quarkus.datasource.password=password 
 
-#### Use hibernate ORM
+#### Use Hibernate ORM
 **NOTE:** Hibernate ORM conflicts with reactive postgres, so start by removing that dependency and code.
 
 Add `hibernate-orm` and `jdbc-postgres` extensions.
@@ -156,8 +158,9 @@ Add `hibernate-orm` and `jdbc-postgres` extensions.
     mvn quarkus:add-extension -Dextensions="io.quarkus:quarkus-hibernate-orm"
     mvn quarkus:add-extension -Dextensions="io.quarkus:quarkus-jdbc-postgresql"
     
-Create a greeting entity with `greeting` and `lang` fields.
-Create a `JpaGreetingService` that injects the entity manager and performs a query by id.
+Create a JPA entity named `Greeting` containing `id` (of type `Long`), `greeting` and `lang` fields (both of type `String`).
+This entity must be annotated with `javax.persistence.Entity`. Furthermore, getters and setters need to be added.
+Create a `JpaGreetingService` that injects the `Entitymanager` and performs a query by id.
 
     quarkus.datasource.url=jdbc:postgresql:demo
     quarkus.datasource.driver=org.postgresql.Driver
@@ -166,12 +169,13 @@ Create a `JpaGreetingService` that injects the entity manager and performs a que
 
 Finally, inject the `JpaGreetingService` into `Hello` and create a new endpoint to show how it works.
     
-#### Use hibernate ORM Panache
+#### Use Hibernate ORM Panache
 Add `hibernate-orm-panace` extensions.
 
     mvn quarkus:add-extension -Dextensions="io.quarkus:quarkus-hibernate-orm-panache"
  
-Create a new Panache Entity `PanacheGreeting`. The class needs to extend `io.quarkus.hibernate.orm.panache.PanacheEntity` and bear the `javax.persistence.Entity` and `javax.persistence.Table` annotations.
+Create a new entity named `PanacheGreeting`. The class needs to extend `io.quarkus.hibernate.orm.panache.PanacheEntity`.
+Furthermore, the class needs to be annotated with `@Entity` and `@Table("greeting")` (in order to map to the proper database table).
 
 Add two non private fields `greeting` and `lang`.
 No constructors, getters or setters are required.
@@ -338,7 +342,7 @@ Configure kafka in the `application.properties`
     mp.messaging.incoming.in-tweet.value.deserializer=org.apache.kafka.common.serialization.StringDeserializer
     mp.messaging.incoming.in-tweet.group.id=java2days-sofia-2019
 
-**NOTE**: Users the skipped previous step (due to lack of twitter dev account) will be provided access to an external kafka. 
+**NOTE**: Users that skipped the previous step (due to lack of twitter dev account) will be provided access to an external kafka. 
 
     mp.messaging.incoming.in-tweet.bootstrap.servers=<external kafka socket>
 
